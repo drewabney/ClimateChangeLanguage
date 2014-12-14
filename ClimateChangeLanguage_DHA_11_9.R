@@ -9,7 +9,7 @@
 # 6. Plotting 
 # 6a. Additional Plotting 
 
-# Last modified: 9 November 2014 DHA
+# Last modified: 13 December 2014 DHA
 
 ##### 1. Load in packages ######
 library(crqa)
@@ -39,7 +39,7 @@ library(pscl)
 library(reshape2)
 
 ##### 2. Load in Python Data ####
-setwd("~/Desktop/Projects/ClimateChangeProj/Corpora/WordProps_10_7");
+setwd("/Users/DrewAbney/Dropbox/Projects/ClimateChangeProj/ClimateChange_Writing/ClimateChangeLanguage_DataSharing");
 files <- list.files(path=".", pattern=".txt")
 DF <- NULL
 for (f in files) {
@@ -256,6 +256,11 @@ will.lci=c()
 will.uci=c()
 would.lci=c()
 would.uci=c()
+
+Will.sd=c()
+Will.error=c()
+Would.sd=c()
+Would.error=c()
 for (i in 1:7){
   #For Will
   int=exp(m.will$coef$count[[1]])
@@ -263,41 +268,31 @@ for (i in 1:7){
   offset=exp(1*log(TotalWordCount))
   WillEst[i]=mean(int*cof*offset)
   
-  will.CI=exp(cbind(confint(m.will))) # gets scaled (as a function of IR:1-7) log ratio
-  LCI=will.CI[2,1]
-  UCI=will.CI[2,2]
-  will.lci[i]=mean(int*LCI*offset) # gets lower limit
-  will.uci[i]=mean(int*UCI*offset) # gets upper limit 
-  
+  Will.sd=sd(int*cof*offset)
+  Will.error[i] <- qnorm(0.975)*Will.sd/sqrt(m.will$n)
+  summary(m.will)
+
   #For Would
   int=exp(m.would$coef$count[[1]])
   cof=exp(m.would$coef$count[[2]]*i)
   offset=exp(1*log(TotalWordCount))
   WouldEst[i]=mean(int*cof*offset)
   
-  would.CI=exp(cbind(confint(m.would))) # gets scaled (as a function of IR:1-7) log ratio
-  LCI=would.CI[2,1]
-  UCI=would.CI[2,2]
-  would.lci[i]=mean(int*LCI*offset) # gets lower limit
-  would.uci[i]=mean(int*UCI*offset) # gets upper limit 
-  
+  Would.sd=sd(int*cof*offset)
+  Would.error[i] <- qnorm(0.975)*Would.sd/sqrt(m.would$n)
+    
 }
+
+Will.UCI=WillEst+Will.error
+Will.LCI=WillEst-Will.error
+Would.UCI=WouldEst+Would.error
+Would.LCI=WouldEst-Would.error
+
+UCI=c(Will.UCI, Would.UCI)
+LCI=c(Will.LCI, Would.LCI)
 
 Will=WillEst
 Would=WouldEst
-
-estimate.df.ww=data.frame(Will,Would)
-LCIestimate.df.ww=data.frame(will.lci,would.lci)
-UCIestimate.df.ww=data.frame(will.uci,would.uci)
-
-estimate.df.m.ww=melt(estimate.df.ww)
-LCIestimate.df.m.ww=melt(LCIestimate.df.ww)
-UCIestimate.df.m.ww=melt(UCIestimate.df.ww)
-y=rep(1:7, times=2, each=1)
-estimate.df.m.ww$Word=estimate.df.m.ww$variable
-
-confint(m.will)
-confint(m.would)
 
 ##### 5b. Poisson Regression Analyses: Zeros (not included in manuscript) #####
 
@@ -358,10 +353,6 @@ limits <- aes(ymax =n$IdeologyRatings + n$IdeologyRatings.se,ymin =n$IdeologyRat
 n$ul=n$IdeologyRatings + n$IdeologyRatings.se
 n$ll=n$IdeologyRatings - n$IdeologyRatings.se
 
-#n$ul=scale(n$IdeologyRatings) + scale(n$IdeologyRatings.se)
-#n$ll=scale(n$IdeologyRatings) - scale(n$IdeologyRatings.se)
-
-
 cbPalette <- c("#2166ac","#2166ac","#2166ac","#4393c3","#4393c3","#4393c3",
                "#92c5de","#92c5de","#92c5de","#d1e5f0","#d1e5f0",
                "#f7f7f7","#f7f7f7","#fddbc7","#fddbc7",
@@ -369,7 +360,6 @@ cbPalette <- c("#2166ac","#2166ac","#2166ac","#4393c3","#4393c3","#4393c3",
 
 IdeologyRatings.s=scale(IdeologyRatings)
 
-#g = ggplot(n, aes(reorder(NewsSource.rename, -IdeologyRatings.s), IdeologyRatings.s))
 g = ggplot(n, aes(reorder(NewsSource.rename, -IdeologyRatings), IdeologyRatings))
 
 g = g + geom_bar(stat="identity",fill=cbPalette) +
@@ -405,23 +395,15 @@ g + th
 
 # Poisson Regression Plot
 
-low=estimate.df.m$value-(.05*estimate.df.m$value)
-high=ymax = estimate.df.m$value+(.05*estimate.df.m$value)
-
 #Will/Would
-low=estimate.df.m.ww$value-(.05*estimate.df.m.ww$value)
-high=ymax = estimate.df.m.ww$value+(.05*estimate.df.m.ww$value)
 
 p1=ggplot(data=estimate.df.m.ww, aes(x=y, y=value, group=Word, color=Word)) + 
-  #p1=ggplot(data=estimate.df.m, aes(x=y, y=value, group=Word, color=Word)) + 
-  
-  #geom_ribbon(aes(ymin = low,ymax = high, fill = variable,alpha = 0.1),show_guide = FALSE) +
-  geom_errorbar(aes(ymin=low, ymax=high), width=.1) +
+  geom_errorbar(aes(ymin=LCI, ymax=UCI), width=.1) +
   geom_line(size=1.5) + geom_point() + xlab("Ideology Ratings") + ylab("Predicted Counts") + theme_few()+
   
   # scale_color_manual(values=c("#2166ac","#4393c3","#d6604d","#b2182b"))+
   # scale_color_manual(values=c("#2166ac","#b2182b"))+
-  scale_color_manual(values=c("#af8dc3","#7fbf7b"))+
+  scale_color_manual(values=c("#d8b365","#5ab4ac"))+
   
   theme(axis.line = element_line(colour = "black"),
         panel.grid.major = element_blank(),
@@ -446,81 +428,7 @@ th=theme(axis.text=element_text(size=14),
 
 p1+th
 
-pdf("~/Desktop/Projects/ClimateChangeProj/Corpora/WordProps_10_7/figure1.pdf",width=14,height=8)
+pdf("/Users/DrewAbney/Dropbox/Projects/ClimateChangeProj/ClimateChange_Writing/ClimateChangeLanguage_DataSharing/figure1.pdf",width=14,height=8)
 grid.arrange(g+th, p1+th, ncol = 2, main = "")
 dev.off()
-
-##### 6a. TRY: additional new source plot #####
-
-
-# Newsource plot
-makeFootnote <- function(footnoteText =
-                           format(Sys.time(), "%d %b %Y"),
-                         size = .7, color = grey(.5))
-{
-  require(grid)
-  pushViewport(viewport())
-  grid.text(label = footnoteText ,
-            x = unit(1,"npc") - unit(2, "mm"),
-            y = unit(2, "mm"),
-            just = c("right", "bottom"),
-            gp = gpar(cex = size, col = color))
-  popViewport()
-}
-
-n$NewsSource.rename.n <- factor(n$NewsSource.rename, levels=unique(as.character(n$NewsSource.rename)) )
-n$NewsSource.rename=factor(n$NewsSource.rename)
-
-library(RColorBrewer)
-library(extrafont)
-library(gtable)
-#+/-se
-limits <- aes(ymax =n$IdeologyRatings + n$IdeologyRatings.se,ymin =n$IdeologyRatings - n$IdeologyRatings.se)
-
-#n$ul=n$IdeologyRatings + n$IdeologyRatings.se
-#n$ll=n$IdeologyRatings - n$IdeologyRatings.se
-
-n$ul=scale(n$IdeologyRatings) + scale(n$IdeologyRatings.se)
-n$ll=scale(n$IdeologyRatings) - scale(n$IdeologyRatings.se)
-
-
-cbPalette <- c("#2166ac","#2166ac","#2166ac","#4393c3","#4393c3","#4393c3",
-               "#92c5de","#92c5de","#92c5de","#d1e5f0","#d1e5f0",
-               "#f7f7f7","#f7f7f7","#fddbc7","#fddbc7",
-               "#f4a582","#f4a582","#f4a582","#d6604d","#d6604d","#b2182b","#b2182b","#b2182b")
-
-IdeologyRatings.s=scale(IdeologyRatings)
-
-g = ggplot(n, aes(reorder(NewsSource.rename, -IdeologyRatings.s), IdeologyRatings.s))
-g = g + geom_bar(stat="identity",fill=cbPalette) +
-  
-  #geom_errorbar(aes(ymin=n$ll, ymax=n$ul),width=.25,color="black") +
-  
-  scale_y_discrete(breaks = c("-1","1"), 
-                   labels=c("Conservative","Progressive"),expand = c(.1,.1)) +
-  theme(axis.text.x=element_text(colour="black")) + 
-  theme(axis.text.y=element_text(colour="black")) + 
-  theme(axis.title.y = element_blank()) +  
-  labs(list(x = " ", y = "Ideology Ratings")) +
-  coord_flip()+
-  theme_bw()+
-  
-  theme(axis.line = element_line(colour = "black"),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank(),
-        legend.title = element_blank()) +
-  
-  theme(axis.title.x = element_text(size=20,lineheight=.8, 
-                                    vjust=0,family="Times")) +
-  theme(axis.text.y = element_text(size=15,lineheight=.8, 
-                                   vjust=0.5,family="Times")) +
-  theme(axis.text.x = element_text(size=15,lineheight=.8, 
-                                   vjust=0,family="Times"))
-th=theme(axis.text=element_text(size=14),
-         axis.title=element_text(size=14,face="bold"))
-
-g + th
-
 
